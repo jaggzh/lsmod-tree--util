@@ -1,0 +1,53 @@
+#!/usr/bin/perl
+# Print tree of kernel module dependencies
+# by jaggz.h {over at} gmail.com (2022-12-31)
+# License: The Unlicense. See LICENSE for more unrestrictions.
+use v5.24; use warnings;
+use File::Slurper qw(read_lines);
+my $scriptpath = $0;
+$scriptpath = "/what/bin/hello.pl";
+my ($scriptname) = ($scriptpath =~ m|([^/]+)$|);
+if (@ARGV > 0) {
+	if ($ARGV[0] ne '-h' && $ARGV[0] ne '--help') {
+		say STDERR "$scriptname: Error: No params, or only -h or --help accepted";
+		print STDERR usage_str();
+		exit 1;
+	}
+	print usage_str();
+	exit;
+}
+
+my $modsfn="/proc/modules";
+my @lines = read_lines($modsfn);
+my %moddeps;
+for my $s (@lines) { add_moddep_line($s); }
+my $level=0;
+for my $s (keys %moddeps) { print_dep(0, $s); }
+exit;
+
+sub usage_str {
+	return "Usage: $scriptname [-h or --help]\n" .
+	       "       Print tree of kernel module dependencies\n";
+}
+sub print_dep {
+	my ($level, $m)=@_;
+	say "\t" x $level, $m;
+	for my $d (@{$moddeps{$m}}) { print_dep($level+1, $d); }
+}
+sub add_moddep_line { my $s = shift;
+	# modxy 123 123 d1,d2, - Live 0x00000000...
+	my @ms = split(/ /, $s);
+	my $name = $ms[0];
+	my @deps;
+	if ($ms[3] ne '-') { @deps = split(/,/, $ms[3]); }
+	# say "[$name] ", join ' ', map {"{$_}"} @deps;
+	$moddeps{$name} = \@deps;
+}
+
+# $ cat /proc/modules
+# ...
+# uvcvideo 118784 0 - Live 0x0000000000000000
+# videobuf2_v4l2 36864 1 uvcvideo, Live 0x0000000000000000
+# videobuf2_common 65536 2 uvcvideo,videobuf2_v4l2, Live 0x0000000000000000
+# snd_seq_midi_event 16384 1 snd_seq_midi, Live 0x0000000000000000
+# ...
