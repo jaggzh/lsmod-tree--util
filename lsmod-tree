@@ -30,8 +30,10 @@ else { print_deps(); }
 exit;
 
 sub usage_str {
-	return "Usage: $scriptname [-h or --help]\n" .
-	       "       Print tree of kernel module dependencies\n";
+	return "Usage: $scriptname [-h or --help] [-r]\n" .
+	       "       Print tree of kernel module dependencies\n" .
+	       "       -h --help   this help\n" .
+	       "       -r          reverse dependencies tree\n";
 }
 sub print_deps {
 	say "# Forward dependencies:";
