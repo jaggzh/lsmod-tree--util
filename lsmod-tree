@@ -5,34 +5,51 @@
 use v5.24; use warnings;
 use File::Slurper qw(read_lines);
 my $scriptpath = $0;
-$scriptpath = "/what/bin/hello.pl";
 my ($scriptname) = ($scriptpath =~ m|([^/]+)$|);
+my $opt_reverse=0;
 if (@ARGV > 0) {
-	if ($ARGV[0] ne '-h' && $ARGV[0] ne '--help') {
+	if ($ARGV[0] eq '-r') { $opt_reverse = 1; }
+	elsif ($ARGV[0] ne '-h' && $ARGV[0] ne '--help') {
 		say STDERR "$scriptname: Error: No params, or only -h or --help accepted";
 		print STDERR usage_str();
 		exit 1;
+	} else {
+		print usage_str();
+		exit;
 	}
-	print usage_str();
-	exit;
 }
 
 my $modsfn="/proc/modules";
 my @lines = read_lines($modsfn);
 my %moddeps;
+my %modrdeps;
 for my $s (@lines) { add_moddep_line($s); }
 my $level=0;
-for my $s (keys %moddeps) { print_dep(0, $s); }
+if ($opt_reverse) { print_rdeps(); }
+else { print_deps(); }
 exit;
 
 sub usage_str {
 	return "Usage: $scriptname [-h or --help]\n" .
 	       "       Print tree of kernel module dependencies\n";
 }
+sub print_deps {
+	say "# Forward dependencies:";
+	for my $s (keys %moddeps) { print_dep(0, $s); }
+}
+sub print_rdeps {
+	say "# Reverse dependencies:";
+	for my $s (keys %modrdeps) { print_rdep(0, $s); }
+}
 sub print_dep {
 	my ($level, $m)=@_;
 	say "\t" x $level, $m;
 	for my $d (@{$moddeps{$m}}) { print_dep($level+1, $d); }
+}
+sub print_rdep {
+	my ($level, $m)=@_;
+	say "\t" x $level, $m;
+	for my $d (@{$modrdeps{$m}}) { print_dep($level+1, $d); }
 }
 sub add_moddep_line { my $s = shift;
 	# modxy 123 123 d1,d2, - Live 0x00000000...
@@ -42,6 +59,14 @@ sub add_moddep_line { my $s = shift;
 	if ($ms[3] ne '-') { @deps = split(/,/, $ms[3]); }
 	# say "[$name] ", join ' ', map {"{$_}"} @deps;
 	$moddeps{$name} = \@deps;
+	for my $d (@deps) {
+		add_rdep($d, $name);
+	}
+}
+sub add_rdep {
+	my ($m, $d) = @_;
+	if (!exists $modrdeps{$m}) { $modrdeps{$m} = [$d]; }
+	else { push(@{$modrdeps{$m}}, $d); }
 }
 
 # $ cat /proc/modules
